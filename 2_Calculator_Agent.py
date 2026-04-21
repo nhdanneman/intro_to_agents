@@ -6,11 +6,14 @@ It is a calculator, that takes in word problems and solves them.
 
 import anthropic
 import math
+import os
 import sys
 
-client = anthropic.Anthropic()
+# source your anthropic API key from an environment variable on your machine
+client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_KEY"])
 
 # Tool definition: what the model can call
+# Each tool in the list has a name, textual description for reasoning, and input specification
 tools = [
     {
         "name": "calculator",
@@ -45,13 +48,16 @@ system = (
     "Show your reasoning step by step, then state a clear final answer."
 )
 
-# Format all this into something callable
+# Format all the components into something callable
 
 def run_agent(question: str) -> str:
     # this is the agent's tiny, in-house memory sytem
     # gets extended each time
     messages = [{"role": "user", "content": question}]
-    while True:
+
+    # Here is a backstop for loops that don't reach a graceful stopping point
+    for _ in range(10):
+        # Send the system prompt, tool descriptions, and messages to an LLM
         response = client.messages.create(
             model="claude-opus-4-7",
             max_tokens = 1024,
@@ -59,19 +65,26 @@ def run_agent(question: str) -> str:
             tools=tools,
             messages=messages,
         )
+        
+        # Add the response to the memory
         messages.append({"role": "assistant", "content": response.content})
+
+        # one case: we are done
         if response.stop_reason == "end_turn":
-            return next(b.text for b in respponse.content if b.type == "Test")
+            return next(b.text for b in response.content if b.type == "text")
+        
+        # another case: a tool is called
         if response.stop_reason == "tool_use":
-            tool_results = []
+            tool_results = [] # set up storage for tool results
             for block in response.content:
-                if block.type == "tool_use":
+                if block.type == "tool_use": # note, we don't have to reason over which tool to call; we only have one for now
                     result = run_calculator(block.input["expression"])
                     tool_results.append({
                         "type": "tool_result",
-                        "tool_use"id": block.id,
+                        "tool_use_id": block.id,
                         "content": result,
                     })
+            # add tool-call results to the message list...
             messages.append({"role": "user", "content": tool_results})
                     
 if __name__ == "__main__":

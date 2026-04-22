@@ -1,0 +1,45 @@
+### How Much Deeper does the Rabbit Hole Go?
+
+Our calculator agent is a long way from a super-powerful one like Claude Code. This section examines those diffs to give you a sense of all the places a high powered agent changes, and the places where what we've already got is sufficient.
+
+### Tool Surface: Passive versus Exploring/Active
+
+Our calculator agent has no side effects. It turns inputs into outputs. Claude Code, for instance, has ~8 tools (bash, read, write, edit, glob, grep, web fetch) designed to let the model explore an unknown environment. It doens't know the codebase when it starts up. It uses grep to find relevant files, reads them selectively, runs code to check behavior, then edits. The tools form a feedback loop with the world.
+
+### Context Management
+
+In our toy calculator agent, everything fits in one model call. That is, the original ask, and all intermediate steps, fit in the context window of a modern LLM.
+
+Contrast that with Claude Code, which might have to reason about a 500k token codebase. The model can't read it all at once. So CC uses search tools to selectively load context. This might look like grep'ing for a function name, reading only the relevant files, etc. Another way to think about this is as active retrieval/search, rather than passively receiving inputs.
+
+### Error Recovery and Verification
+
+In our calculator agent, if the calc returns and error, it goes back to the model. That's it. No sophisticated recovery mechanisms.
+
+CC, by contrast, runs a command, reads stdout/stderr, adapts, and runs tests to verify the fix worked. Then it might check that adjacent pieces of a codebase weren't harmed. This is more like verification, and less like assuming a fix worked.
+
+
+### Human-in-the-Loop and Safety Checkpoints
+
+Our toy calculator agent loops until `end_turn` autonomously. CC has permission tiers. Read-only operations can run freely, while destructive ones (deleting branches, pushing,etc) require confirmation by the user. The model is also prompted ot flag when it is uncertain.
+
+### Non-Model Portions (i.e. Scaffolding)
+
+In our calculator agent, the loop is the entire system. It's like 90 lines. In CC, the model is maybe 20% of the surface area. The rest is streaming output, perpmissions and approval systems, context management, IDE integration, CLAUDE.md for persistent project context, rate limiting, error handling, retry logic, and other controls.
+
+### So Much Power with 8 Tools
+
+You might think that a tremendous agent needs a tremendously large toolkit. I did. That CC operates with only 8 tools was a surprise at first. It turns out one of the tools is a supertool. **Bash is doing a LOT of the work.** It's not really 1 tool; it's a gateway to every installed program on the system: git, python, pip, curl, grep, awk...and CLI tool. The bash tool is extremely general precisely because it delegates to a rick environment rather than encoding a capability in the tool itself.
+
+The other tools exist to do bash's job better in really specific cases. There's a dedicated read tool that handles large files gracefully, gives line numbers, an dhandles encoding edge cases. The `edit` tool does string replacement atomically. You could do these things with bach, but there would be more awkward failures and harder to audit behahiors.
+
+An overarching theme here is that primitives plus composability likely beats specificity, especially if you have to handle the wide open world of other people's codebases. You might think this solves the problem of exactly which tool to call, and it somewhat does. However, it also sort of pushes the wide predictive problem to the next layer; i.e. what params to pass to bash.
+
+### Next Up, Research and Server-Side Tools
+
+Go check out 4_Research_Agent.py
+
+Things to note:
+1. Server side tools (Anthropic writes and runs, you just declare)
+2. There's no tool definition block at all (see 1).
+3. Model really thinks hard about stopping conditions

@@ -91,6 +91,7 @@ if __name__ == "__main__":
     question = " ".join(sys.argv[1:])
     print(run_agent(question))
 
-
+# usage hint
+# python 2_Calculator_Agent.py "What is the surface area of a sphere with radius 5?"
 
 
